@@ -3,7 +3,6 @@ package user
 import (
 	"basic-crud/database"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -18,47 +17,63 @@ type user struct {
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
-	requestBody, error := ioutil.ReadAll(r.Body)
-	if error != nil {
-		w.Write([]byte("Falha ao ler corpo da requisição"))
+	requestBody, err := ioutil.ReadAll(r.Body)
+
+	if err != nil {
+		handlerErrorRequest(w, "Falha ao ler corpo da requisição", http.StatusInternalServerError)
 		return
 	}
+
 	var user user
-	if error = json.Unmarshal(requestBody, &user); error != nil {
-		w.Write([]byte("Erro ao converter JSON para struct"))
+
+	if err = json.Unmarshal(requestBody, &user); err != nil {
+		handlerErrorRequest(w, "Erro ao converter JSON para struct", http.StatusInternalServerError)
 		return
 	}
-	dbConnection, error := database.Connect()
-	if error != nil {
-		w.Write([]byte("Erro ao conectar com o banco de dados"))
+
+	dbConnection, err := database.Connect()
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao conectar com o banco de dados", http.StatusInternalServerError)
 		return
 	}
+
 	defer dbConnection.Close()
-	statement, error := dbConnection.Prepare("INSERT INTO usuarios (nome, email) VALUES (?, ?);")
-	if error != nil {
-		w.Write([]byte("Erro ao preparar statement"))
+
+	statement, err := dbConnection.Prepare("INSERT INTO usuarios (nome, email) VALUES (?, ?);")
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao preparar statement", http.StatusInternalServerError)
 		return
 	}
+
 	defer statement.Close()
-	insertResult, error := statement.Exec(user.Name, user.Email)
-	if error != nil {
-		w.Write([]byte("Erro ao executar statement"))
+
+	insertResult, err := statement.Exec(user.Name, user.Email)
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao executar statement", http.StatusInternalServerError)
 		return
 	}
-	userId, error := insertResult.LastInsertId()
-	if error != nil {
+
+	userId, err := insertResult.LastInsertId()
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao obter id do usuário", http.StatusInternalServerError)
 		w.Write([]byte("Erro ao obter id do usuário"))
 		return
 	}
+
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(fmt.Sprintf("Usuário criado com sucesso: %d", userId)))
+	json.NewEncoder(w).Encode(map[string]int64{"id": userId})
+
 }
 
 func GetAll(w http.ResponseWriter, r *http.Request) {
 	dbConnection, err := database.Connect()
 
 	if err != nil {
-		w.Write([]byte("Erro ao conectar com o banco de dados"))
+		handlerErrorRequest(w, "Erro ao conectar com o banco de dados", http.StatusInternalServerError)
 		return
 	}
 
@@ -67,7 +82,7 @@ func GetAll(w http.ResponseWriter, r *http.Request) {
 	queryResult, err := dbConnection.Query("SELECT * FROM usuarios;")
 
 	if err != nil {
-		w.Write([]byte("Erro ao buscar usuários"))
+		handlerErrorRequest(w, "Erro ao buscar usuários", http.StatusInternalServerError)
 		return
 	}
 
@@ -79,7 +94,7 @@ func GetAll(w http.ResponseWriter, r *http.Request) {
 		var user user
 
 		if err := queryResult.Scan(&user.ID, &user.Name, &user.Email); err != nil {
-			w.Write([]byte("Erro ao scanear o usuário"))
+			handlerErrorRequest(w, "Erro ao scanear o usuário", http.StatusInternalServerError)
 			return
 		}
 
@@ -88,7 +103,7 @@ func GetAll(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(users); err != nil {
-		w.Write([]byte("Erro ao converter JSON"))
+		handlerErrorRequest(w, "Erro ao converter JSON", http.StatusInternalServerError)
 		return
 	}
 }
@@ -99,22 +114,23 @@ func GetOne(w http.ResponseWriter, r *http.Request) {
 	ID, err := strconv.ParseUint(params["id"], 10, 32)
 
 	if err != nil {
-		w.Write([]byte("Erro ao converter id para uint32"))
+		handlerErrorRequest(w, "Erro ao converter id para uint32", http.StatusInternalServerError)
 		return
 	}
 
 	dbConnection, err := database.Connect()
 
 	if err != nil {
-		w.Write([]byte("Erro ao conectar com o banco de dados"))
+		handlerErrorRequest(w, "Erro ao conectar com o banco de dados", http.StatusInternalServerError)
 		return
 	}
 
 	defer dbConnection.Close()
 
 	queryResult, err := dbConnection.Query("SELECT * FROM usuarios WHERE id = ?;", ID)
+
 	if err != nil {
-		w.Write([]byte("Erro ao buscar usuário"))
+		handlerErrorRequest(w, "Erro ao buscar usuário", http.StatusInternalServerError)
 		return
 	}
 
@@ -123,18 +139,23 @@ func GetOne(w http.ResponseWriter, r *http.Request) {
 	var user user
 
 	if !queryResult.Next() {
-		w.Write([]byte("Usuário não encontrado"))
+		handlerErrorRequest(w, "Usuário não encontrado", http.StatusNotFound)
 		return
 	}
 
 	if err := queryResult.Scan(&user.ID, &user.Name, &user.Email); err != nil {
-		w.Write([]byte("Erro ao scanear o usuário"))
+		handlerErrorRequest(w, "Erro ao scanear o usuário", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(user); err != nil {
-		w.Write([]byte("Erro ao converter JSON"))
+		handlerErrorRequest(w, "Erro ao scanear o usuário", http.StatusInternalServerError)
 		return
 	}
+}
+
+func handlerErrorRequest(w http.ResponseWriter, err string, status int) {
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": err})
 }
