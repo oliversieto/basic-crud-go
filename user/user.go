@@ -14,7 +14,7 @@ type user struct {
 	Email string `json:"email"`
 }
 
-func CreateUser(w http.ResponseWriter, r *http.Request) {
+func Create(w http.ResponseWriter, r *http.Request) {
 	requestBody, error := ioutil.ReadAll(r.Body)
 	if error != nil {
 		w.Write([]byte("Falha ao ler corpo da requisição"))
@@ -49,4 +49,47 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(fmt.Sprintf("Usuário criado com sucesso: %d", userId)))
+}
+
+func GetAll(w http.ResponseWriter, r *http.Request) {
+	dbConnection, err := database.Connect()
+
+	if err != nil {
+		w.Write([]byte("Erro ao conectar com o banco de dados"))
+		return
+	}
+
+	defer dbConnection.Close()
+
+	queryResult, err := dbConnection.Query("SELECT * FROM usuarios;")
+
+	if err != nil {
+		w.Write([]byte("Erro ao buscar usuários"))
+		return
+	}
+
+	defer queryResult.Close()
+
+	var users []user
+
+	for queryResult.Next() {
+		var user user
+
+		if err := queryResult.Scan(&user.ID, &user.Name, &user.Email); err != nil {
+			w.Write([]byte("Erro ao scanear o usuário"))
+			return
+		}
+
+		users = append(users, user)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(users); err != nil {
+		w.Write([]byte("Erro ao converter JSON"))
+		return
+	}
+}
+
+func GetOne(w http.ResponseWriter, r *http.Request) {
+
 }
