@@ -14,6 +14,7 @@ func main() {
 	router.HandleFunc("/users", user.Create).Methods(http.MethodPost)
 	router.HandleFunc("/users", user.GetAll).Methods(http.MethodGet)
 	router.HandleFunc("/users/{id}", user.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/users/{id}", user.Update).Methods(http.MethodPut)
 	fmt.Println("Server started on port 5000")
 	log.Fatal(http.ListenAndServe(":5000", router))
 }

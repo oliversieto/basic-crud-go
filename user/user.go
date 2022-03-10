@@ -60,7 +60,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		handlerErrorRequest(w, "Erro ao obter id do usuário", http.StatusInternalServerError)
-		w.Write([]byte("Erro ao obter id do usuário"))
 		return
 	}
 
@@ -153,6 +152,57 @@ func GetOne(w http.ResponseWriter, r *http.Request) {
 		handlerErrorRequest(w, "Erro ao scanear o usuário", http.StatusInternalServerError)
 		return
 	}
+}
+
+func Update(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+
+	ID, err := strconv.ParseUint(params["id"], 10, 32)
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao converter parâmetro para inteiro", http.StatusInternalServerError)
+		return
+	}
+
+	requestBody, err := ioutil.ReadAll(r.Body)
+
+	if err != nil {
+		handlerErrorRequest(w, "Falha ao ler corpo da requisição", http.StatusInternalServerError)
+		return
+	}
+
+	var user user
+
+	if err = json.Unmarshal(requestBody, &user); err != nil {
+		handlerErrorRequest(w, "Erro ao converter usuário para struct", http.StatusInternalServerError)
+		return
+	}
+
+	dbConnection, err := database.Connect()
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao conectar com o banco de dados", http.StatusInternalServerError)
+		return
+	}
+
+	defer dbConnection.Close()
+
+	statement, err := dbConnection.Prepare("UPDATE usuarios SET nome = ?, email = ? WHERE id = ?;")
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao preparar statement", http.StatusInternalServerError)
+		return
+	}
+
+	defer statement.Close()
+
+	if _, err = statement.Exec(user.Name, user.Email, ID); err != nil {
+		handlerErrorRequest(w, "Erro ao executar statement", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+
 }
 
 func handlerErrorRequest(w http.ResponseWriter, err string, status int) {
