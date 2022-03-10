@@ -205,6 +205,42 @@ func Update(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func Delete(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+
+	ID, err := strconv.ParseUint(params["id"], 10, 32)
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao converter parâmetro para inteiro", http.StatusInternalServerError)
+		return
+	}
+
+	dbConnection, err := database.Connect()
+
+	if err != nil {
+		handlerErrorRequest(w, "Error ao abrir conexão com banco", http.StatusInternalServerError)
+		return
+	}
+
+	defer dbConnection.Close()
+
+	statement, err := dbConnection.Prepare("DELETE FROM usuarios WHERE id = ?")
+
+	if err != nil {
+		handlerErrorRequest(w, "Erro ao preparar statement", http.StatusInternalServerError)
+		return
+	}
+
+	defer statement.Close()
+
+	if _, err := statement.Exec(ID); err != nil {
+		handlerErrorRequest(w, "Erro ao executar statement", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handlerErrorRequest(w http.ResponseWriter, err string, status int) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": err})
